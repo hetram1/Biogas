@@ -38,19 +38,149 @@ parity_data = pd.read_csv("parity_data.csv")
 
 st.sidebar.header("Input Conditions")
 
-raw_sewage = st.sidebar.slider(
-    "Raw Sewage Flow (L/day)",
-    500,
-    5000,
-    750
+# =====================================
+# RAW SEWAGE INPUT
+# =====================================
+
+# Dry biomass (Volatile Suspended Solids)
+# Typical municipal sewage:
+# 150–250 mg/L
+# Midpoint = 200 mg/L = 0.0002 kg/L
+
+VSS_CONCENTRATION = 0.0002      # kg dry biomass per L sewage
+
+raw_unit = st.sidebar.selectbox(
+    "Raw Sewage Unit",
+    [
+        "L/day",
+        "m³/day",
+        "Dry Biomass (kg/day)"
+    ]
 )
 
-vegetable_waste = st.sidebar.slider(
-    "Vegetable Waste (kg/day)",
-    10,
-    300,
-    100
+# ----------------------------
+# INPUT IN L/day
+# ----------------------------
+
+if raw_unit == "L/day":
+
+    raw_sewage = st.sidebar.slider(
+        "Raw Sewage Flow",
+        500,
+        5000,
+        750
+    )
+
+    raw_sewage_m3 = raw_sewage / 1000
+
+    raw_sewage_kg = raw_sewage * VSS_CONCENTRATION
+
+    st.sidebar.success(
+        f"{raw_sewage_m3:.3f} m³/day | {raw_sewage_kg:.3f} kg Dry Biomass/day"
+    )
+
+# ----------------------------
+# INPUT IN m³/day
+# ----------------------------
+
+elif raw_unit == "m³/day":
+
+    raw_sewage_m3 = st.sidebar.slider(
+        "Raw Sewage Flow",
+        0.50,
+        5.00,
+        0.75,
+        0.01
+    )
+
+    raw_sewage = raw_sewage_m3 * 1000
+
+    raw_sewage_kg = raw_sewage * VSS_CONCENTRATION
+
+    st.sidebar.success(
+        f"{raw_sewage:.0f} L/day | {raw_sewage_kg:.3f} kg Dry Biomass/day"
+    )
+
+# ----------------------------
+# INPUT IN DRY BIOMASS
+# ----------------------------
+
+else:
+
+    raw_sewage_kg = st.sidebar.slider(
+        "Dry Biomass Feed (kg/day)",
+        0.1,
+        10.0,
+        2.0,
+        0.1
+    )
+
+    # Fixed hydraulic flow (user can choose a representative value)
+    raw_sewage = 1000          # L/day 
+    raw_sewage_m3 = 1.0        # m³/day
+
+    st.sidebar.success(
+    f"Hydraulic Flow = {raw_sewage:.0f} L/day\n"
+    f"Dry Biomass = {raw_sewage_kg:.3f} kg/day"
+    )
+
+# =====================================
+# INFORMATION
+# =====================================
+
+st.sidebar.info(
+"""
+Typical Municipal Raw Sewage
+
+• Dry Biomass (VSS): 150–250 mg/L
+
+Engineering assumption:
+
+• 200 mg/L = 0.0002 kg/L
+
+Equivalent:
+
+• 1 L sewage ≈ 0.0002 kg dry biomass
+
+• 1000 L sewage ≈ 0.20 kg dry biomass
+
+• 1 kg dry biomass ≈ 5000 L sewage ≈ 5 m³ sewage
+"""
 )
+
+vegetable_density = 650      # kg/m³
+
+veg_unit = st.sidebar.selectbox(
+    "Vegetable Waste Unit",
+    ["kg/day", "m³/day"]
+)
+
+if veg_unit == "kg/day":
+
+    vegetable_waste = st.sidebar.slider(
+        "Vegetable Waste",
+        10,
+        300,
+        100
+    )
+
+    vegetable_volume = vegetable_waste / vegetable_density
+
+    st.sidebar.success(f"= {vegetable_volume:.3f} m³/day")
+
+else:
+
+    vegetable_volume = st.sidebar.slider(
+        "Vegetable Waste",
+        0.01,
+        0.50,
+        0.15,
+        0.005
+    )
+
+    vegetable_waste = vegetable_volume * vegetable_density
+
+    st.sidebar.success(f"= {vegetable_waste:.1f} kg/day")
 
 cellulose = st.sidebar.slider(
     "Cellulose (%)",
@@ -96,12 +226,35 @@ ph = st.sidebar.slider(
 )
 
 
-volume = st.sidebar.slider(
-    "Digester Volume (m³)",
-    2,
-    150,
-    40
+volume_unit = st.sidebar.selectbox(
+    "Digester Volume Unit",
+    ["m³", "L"]
 )
+
+if volume_unit == "m³":
+
+    volume = st.sidebar.slider(
+        "Digester Volume",
+        2,
+        150,
+        40
+    )
+
+    st.sidebar.success(f"= {volume*1000:.0f} L")
+
+else:
+
+    volume_liters = st.sidebar.slider(
+        "Digester Volume",
+        2000,
+        150000,
+        40000,
+        500
+    )
+
+    volume = volume_liters / 1000
+
+    st.sidebar.success(f"= {volume:.2f} m³")
 
 
 # =====================================
@@ -184,11 +337,18 @@ cn_factor = np.exp(-((cn_ratio-27.5)/5)**2)
 
 flow_factor = (raw_sewage/5000)**0.5
 
+# Reference biomass = 2 kg/day
+biomass_factor = 0.5 + (raw_sewage_kg / 2.0)
+
+# Prevent unrealistic values
+biomass_factor = np.clip(biomass_factor, 0.5, 5.0)
+
 vegetable_factor = 1 + 0.006 * vegetable_waste
 
 physics_prediction = (
     volume
     * flow_factor
+    * biomass_factor
     * vegetable_factor
     * cellulose_factor
     * hemi_factor
@@ -214,6 +374,20 @@ methane = 0.62*final_prediction
 co2 = 0.35*final_prediction
 
 others = 0.03*final_prediction
+
+
+
+
+# =====================================
+# GAS OUTPUT UNIT
+# =====================================
+
+gas_unit = st.radio(
+    "Gas Output Unit",
+    ["m³/day", "L/day", "kg/day"],
+    horizontal=True
+)
+
 
 # =====================================
 # METRICS
@@ -248,6 +422,85 @@ else:
     st.success(
         "✓ Digester operating within safe working volume."
     )
+
+
+# =====================================
+# UNIT CONVERSIONS
+# =====================================
+
+# Raw sewage
+raw_sewage_m3 = raw_sewage / 1000          # m³/day
+raw_sewage_liters = raw_sewage             # L/day
+
+# Dry biomass (VSS)
+raw_sewage_dry_biomass = raw_sewage_kg     # kg/day
+
+# Vegetable waste
+VEGETABLE_DENSITY = 650                    # kg/m³
+
+vegetable_volume = vegetable_waste / VEGETABLE_DENSITY
+vegetable_liters = vegetable_volume * 1000
+
+# Digester
+volume_liters = volume * 1000
+
+# Gas production
+biogas_liters = final_prediction * 1000
+methane_liters = methane * 1000
+co2_liters = co2 * 1000
+
+
+# =====================================
+# GAS PROPERTIES (STP: 0°C, 1 atm)
+# =====================================
+
+MOLAR_VOLUME = 22.414       # L/mol
+
+CH4_MOLAR_MASS = 16.04      # g/mol
+CO2_MOLAR_MASS = 44.01      # g/mol
+
+CH4_DENSITY = CH4_MOLAR_MASS / MOLAR_VOLUME      # g/L = kg/m³
+CO2_DENSITY = CO2_MOLAR_MASS / MOLAR_VOLUME      # g/L = kg/m³
+
+# Biogas composition
+CH4_FRACTION = 0.62
+CO2_FRACTION = 0.35
+OTHER_FRACTION = 0.03
+
+BIOGAS_DENSITY = (
+    CH4_FRACTION * CH4_DENSITY +
+    CO2_FRACTION * CO2_DENSITY
+)
+
+biogas_kg = final_prediction * BIOGAS_DENSITY
+methane_kg = methane * CH4_DENSITY
+
+
+st.markdown("---")
+
+with st.expander("📐 Unit Conversions"):
+
+    st.write(
+    f"**Raw Sewage:** "
+    f"{raw_sewage_liters:.0f} L/day = "
+    f"{raw_sewage_m3:.3f} m³/day = "
+    f"{raw_sewage_dry_biomass:.3f} kg Dry Biomass/day"
+)
+
+    st.write(
+    f"**Vegetable Waste:** "
+    f"{vegetable_waste:.1f} kg/day = "
+    f"{vegetable_volume:.3f} m³/day "
+    f"({vegetable_liters:.0f} L/day)"
+)
+
+    st.write(f"**Digester Volume:** {volume:.2f} m³ = {volume_liters:.0f} L")
+
+    st.write(f"**Biogas Production:** {final_prediction:.2f} m³/day = {biogas_liters:.0f} L/day")
+
+    st.write(f"**Methane:** {methane:.2f} m³/day = {methane_liters:.0f} L/day")
+
+    st.write(f"**CO₂:** {co2:.2f} m³/day = {co2_liters:.0f} L/day")
 
 st.subheader("Design Check")
 
@@ -338,14 +591,32 @@ with col2:
 
 
 
+if gas_unit == "m³/day":
+    biogas_display = f"{final_prediction:.2f} m³/day"
+
+elif gas_unit == "L/day":
+    biogas_display = f"{biogas_liters:.0f} L/day"
+
+else:
+    biogas_display = f"{biogas_kg:.2f} kg/day"
+
 c1.metric(
-"Biogas",
-f"{final_prediction:.2f} m³/day"
+    "Biogas",
+    biogas_display
 )
 
+if gas_unit == "m³/day":
+    methane_display = f"{methane:.2f} m³/day"
+
+elif gas_unit == "L/day":
+    methane_display = f"{methane_liters:.0f} L/day"
+
+else:
+    methane_display = f"{methane_kg:.2f} kg/day"
+
 c2.metric(
-"CH₄",
-f"{methane:.2f} m³/day"
+    "CH₄",
+    methane_display
 )
 
 c3.metric(
@@ -367,6 +638,8 @@ c6.metric(
     "HRT",
     f"{hrt:.1f} days"
 )
+
+
 
 
 
