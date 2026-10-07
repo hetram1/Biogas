@@ -1,0 +1,29 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# OS / editor
+.DS_Store
+.vscode/
+.idea/
+
+# Local backups
+main_backup.py
+backup_experiments/
+
+# Old model artifacts
+biogas_model.pkl
+feature_importance.csv
+parity_data.csv
+
+# Temporary files
+*.log

@@ -1,4 +1,4 @@
-﻿import streamlit as st
+import streamlit as st
 import pandas as pd
 import numpy as np
 import joblib
@@ -20,17 +20,26 @@ st.title("🟢 AUDST BIOGAS PREDICTION SYSTEM")
 # LOAD MODEL
 # =====================================
 
-saved = joblib.load("biogas_model.pkl")
+model = joblib.load("biogas_model_final.pkl")
 
-model = saved["model"]
+feature_order = [
+    "Raw_Sewage_Flow_L_day",
+    "Vegetable_Waste_kg_day",
+    "Cellulose_pct",
+    "Hemicellulose_pct",
+    "Temperature_C",
+    "pH",
+    "CN_Ratio",
+    "Temperature_deviation",
+    "pH_deviation",
+    "CN_deviation"
+]
 
-feature_order = saved["features"]
-
-importance = pd.read_csv("feature_importance.csv")
+importance = pd.read_csv("final_feature_importance.csv")
 
 data = pd.read_csv("BiogasData.csv")
 
-parity_data = pd.read_csv("parity_data.csv")
+parity_data = pd.read_csv("final_parity_data.csv")
 
 # =====================================
 # SIDEBAR INPUTS
@@ -318,9 +327,26 @@ new_data = pd.DataFrame({
 # MACHINE LEARNING PREDICTION
 # =====================================
 
-new_data = new_data[feature_order]
+def prepare_model_input(df):
+    result = pd.DataFrame({
+        "Raw_Sewage_Flow_L_day": df["Raw_Sewage_Flow_L_day"].values,
+        "Vegetable_Waste_kg_day": df["Vegetable_Waste_kg_day"].values,
+        "Cellulose_pct": df["Cellulose_pct"].values,
+        "Hemicellulose_pct": df["Hemicellulose_pct"].values,
+        "Temperature_C": df["Temperature_C"].values,
+        "pH": df["pH"].values,
+        "CN_Ratio": df["CN_Ratio"].values,
+        "Temperature_deviation": np.abs(df["Temperature_C"].values - 35.0),
+        "pH_deviation": np.abs(df["pH"].values - 7.2),
+        "CN_deviation": np.abs(df["CN_Ratio"].values - 22.5)
+    })
 
-ml_prediction = model.predict(new_data)[0]
+    return result[feature_order]
+
+
+ml_prediction = model.predict(
+    prepare_model_input(new_data)
+)[0]
 
 
 temp_factor = np.exp(-((temp-35)/7)**2)
@@ -359,10 +385,7 @@ physics_prediction = (
     * 10
 )
 
-final_prediction = (
-    0.95*ml_prediction +
-    0.05*physics_prediction
-)
+final_prediction = ml_prediction
 
 
 # =====================================
@@ -536,7 +559,7 @@ image = Image.open("AUDST.png")
 st.image(
     image,
     caption="Anaerobic Upflow Domestic Septic Tank (AUDST)",
-    use_container_width=True
+    width='stretch'
 )
 
 # =====================================
@@ -677,7 +700,7 @@ with col1:
 
     st.plotly_chart(
         fig1,
-        use_container_width=True
+        width='stretch'
     )
 
 # -------------------------------
@@ -714,7 +737,7 @@ with col2:
 
     st.plotly_chart(
         fig2,
-        use_container_width=True
+        width='stretch'
     )
 
 
@@ -765,9 +788,9 @@ for c in cellulose_range:
 
     temp_df["Cellulose_pct"] = c
 
-    temp_df = temp_df[feature_order]
-
-    pred = model.predict(temp_df)[0]
+    pred = model.predict(
+        prepare_model_input(temp_df)
+    )[0]
 
     yield_list.append(pred)
 
@@ -787,7 +810,7 @@ fig = px.line(
 )
 
 with col1:
-    st.plotly_chart(fig,use_container_width=True)
+    st.plotly_chart(fig,width='stretch')
 
 
 cn_range = np.linspace(10,40,40)
@@ -800,9 +823,9 @@ for cn in cn_range:
 
     temp_df["CN_Ratio"] = cn
 
-    temp_df = temp_df[feature_order]
-
-    pred = model.predict(temp_df)[0]
+    pred = model.predict(
+        prepare_model_input(temp_df)
+    )[0]
 
     yield_list.append(pred)
 
@@ -822,7 +845,7 @@ fig = px.line(
 )
 
 with col2:
-    st.plotly_chart(fig,use_container_width=True)
+    st.plotly_chart(fig,width='stretch')
 
 
 
@@ -839,9 +862,9 @@ for h in hrt_range:
 
     temp_df["HRT_days"]=h
 
-    temp_df=temp_df[feature_order]
-
-    pred=model.predict(temp_df)[0]
+    pred=model.predict(
+        prepare_model_input(temp_df)
+    )[0]
 
     yield_list.append(pred)
 
@@ -866,7 +889,7 @@ title="Effect of HRT on Biogas Yield"
 )
 
 with col1:
-    st.plotly_chart(fig,use_container_width=True)
+    st.plotly_chart(fig,width='stretch')
 
 
 
@@ -883,9 +906,9 @@ for t in temp_range:
 
     temp_df["Temperature_C"] = t
 
-    temp_df = temp_df[feature_order]
-
-    pred = model.predict(temp_df)[0]
+    pred = model.predict(
+        prepare_model_input(temp_df)
+    )[0]
 
     yield_list.append(pred)
 
@@ -910,7 +933,7 @@ title="Effect of Temperature on Biogas Yield"
 )
 
 with col2:
-    st.plotly_chart(fig,use_container_width=True)
+    st.plotly_chart(fig,width='stretch')
 
 col1, col2 = st.columns(2)
 
@@ -924,9 +947,9 @@ for p in ph_range:
 
     temp_df["pH"] = p
 
-    temp_df = temp_df[feature_order]
-
-    pred = model.predict(temp_df)[0]
+    pred = model.predict(
+        prepare_model_input(temp_df)
+    )[0]
 
     yield_list.append(pred)
 
@@ -951,7 +974,7 @@ title="Effect of pH on Biogas Yield"
 )
 
 with col1:
-    st.plotly_chart(fig,use_container_width=True)
+    st.plotly_chart(fig,width='stretch')
 
 with col2:
 
@@ -974,7 +997,7 @@ with col2:
 
     st.plotly_chart(
         fig_importance,
-        use_container_width=True
+        width='stretch'
     )
 
 
@@ -999,7 +1022,7 @@ fig_corr = px.imshow(
 
 st.plotly_chart(
     fig_corr,
-    use_container_width=True
+    width='stretch'
 )
 
 
@@ -1037,7 +1060,7 @@ fig_parity.add_shape(
 
 st.plotly_chart(
     fig_parity,
-    use_container_width=True
+    width='stretch'
 )
 
 
@@ -1090,7 +1113,7 @@ fig_radar.update_traces(fill="toself")
 
 st.plotly_chart(
     fig_radar,
-    use_container_width=True
+    width='stretch'
 )
 
 
@@ -1123,7 +1146,7 @@ fig_time = px.line(
 
 st.plotly_chart(
     fig_time,
-    use_container_width=True
+    width='stretch'
 )
 
 
